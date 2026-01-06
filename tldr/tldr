@@ -1682,6 +1682,20 @@ def process_cluster(cluster, inslib, outbase, args, noref_mode):
             os.remove(dump_fa)
             os.remove(dump_fq)
 
+        # Collect denovo-specific info if requested (available after full processing)
+        if cluster is not None and cluster.cons is not None:
+            wiggle = int(args.wiggle)
+            useable_count = cluster.te_useable_count()
+            embedded_count = cluster.te_embedded_count()
+
+            cluster.denovo_info = {
+                'bp_left': int(cluster.breakpoints[0]),
+                'bp_right': int(cluster.breakpoints[1]),
+                'wiggle': wiggle,
+                'TE_family': cluster.te_major_family(),
+                'child_support': f"useable:{useable_count},embedded:{embedded_count}"
+            }
+
     return cluster
 
 
@@ -2189,6 +2203,13 @@ def main(args):
         header.append('Somatic')
         args.strict = True
 
+    if args.denovo:
+        header.append('bp_left')
+        header.append('bp_right')
+        header.append('wiggle')
+        header.append('TE_family')
+        header.append('child_support')
+
     output_recs = []
     targets = None
 
@@ -2360,6 +2381,21 @@ def main(args):
                     output['Remappable']  = cluster.breakpoints_remappable
                     output['Filter']      = assign_filter(output, c_unmap, args, noref_mode, cluster_forest)
 
+                    # denovo mode output fields
+                    if args.denovo and hasattr(cluster, 'denovo_info'):
+                        denovo_info = cluster.denovo_info
+                        output['bp_left']     = denovo_info['bp_left']
+                        output['bp_right']    = denovo_info['bp_right']
+                        output['wiggle']      = denovo_info['wiggle']
+                        output['TE_family']   = denovo_info['TE_family']
+                        output['child_support'] = denovo_info['child_support']
+                    else:
+                        output['bp_left']     = 'NA'
+                        output['bp_right']    = 'NA'
+                        output['wiggle']      = 'NA'
+                        output['TE_family']   = 'NA'
+                        output['child_support'] = 'NA'
+
                     detail = od()
 
                     if args.detail_output:
@@ -2488,5 +2524,6 @@ if __name__ == '__main__':
     parser.add_argument('--keep_pickles', action='store_true', default=False, help='do not remove per-chromosome pickle files')
     parser.add_argument('--use_pickles', default=None, help='use .pickle files in specified folder instead of building from scratch')
     parser.add_argument('--methylartist', action='store_true', help='generate methylartist commands, must be used with --detail_out')
+    parser.add_argument('--denovo', action='store_true', default=False, help='denovo mode: child-side only candidate generation with lightweight output')
     args = parser.parse_args()
     main(args)
