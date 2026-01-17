@@ -83,8 +83,13 @@ def create_cigar_with_insertion(read_len, ins_pos_in_read, ins_len):
         return [(0, ins_pos_in_read), (1, ins_len), (0, read_len - ins_pos_in_read)]
 
 # Create BAM file
-def create_bam_file(output_bam, ref_seq, te_seq, insertion_pos, has_insertion=False, num_reads=20):
-    """Create a BAM file with or without TE insertion."""
+def create_bam_file(output_bam, ref_seq, te_seq, insertion_pos, has_insertion=False, num_reads=20,
+                    extra_regions=None):
+    """Create a BAM file with or without TE insertion.
+
+    Args:
+        extra_regions: list of (start, end) tuples for additional read coverage
+    """
 
     # Create header
     header = {
@@ -96,9 +101,9 @@ def create_bam_file(output_bam, ref_seq, te_seq, insertion_pos, has_insertion=Fa
     reads = []
 
     # Generate reads covering the insertion region
-    # Region: insertion_pos - 5000 to insertion_pos + 5000
-    start_region = max(0, insertion_pos - 5000)
-    end_region = min(len(ref_seq), insertion_pos + 5000)
+    # Region: full genome with extended coverage
+    start_region = 0
+    end_region = len(ref_seq)
 
     for i in range(num_reads):
             # Create read
@@ -109,70 +114,113 @@ def create_bam_file(output_bam, ref_seq, te_seq, insertion_pos, has_insertion=Fa
             a.mapping_quality = 60
 
             if has_insertion:
-                # Half the reads fully embed the insertion
-                # Half partially cover it
-                if i < num_reads // 2:
-                    # Fully embedding reads
-                    read_start = random.randint(insertion_pos - 1000, insertion_pos - 100)
-                    read_len = 3000  # Long enough to cover insertion
-
-                    # Calculate position of insertion in read
-                    ins_pos_in_read = insertion_pos - read_start
-
-                    # Create sequence with insertion
-                    left_flank = ref_seq[read_start:insertion_pos]
-                    right_flank = ref_seq[insertion_pos:read_start + read_len]
-                    query_seq = left_flank + te_seq + right_flank
-
-                    # Create CIGAR: Match left, Insertion, Match right
-                    a.cigartuples = [
-                        (0, len(left_flank)),      # Match
-                        (1, len(te_seq)),           # Insertion
-                        (0, len(right_flank))       # Match
-                    ]
-
-                    a.reference_start = read_start
-                    a.query_sequence = query_seq
-                    a.query_qualities = pysam.qualitystring_to_array("I" * len(query_seq))
-
-                else:
-                    # Partially covering reads (soft-clipped at insertion site)
-                    if random.random() < 0.5:
-                        # Left-side read with right soft-clip
+                # First 10 reads: around insertion region with TE insertion
+                if i < 10:
+                    # Half the reads fully embed the insertion
+                    # Half partially cover it
+                    if i < 5:
+                        # Fully embedding reads
                         read_start = random.randint(insertion_pos - 1000, insertion_pos - 100)
-                        match_len = insertion_pos - read_start
-                        clip_len = random.randint(150, 250)  # Part of TE sequence
+                        read_len = 3000  # Long enough to cover insertion
 
-                        query_seq = ref_seq[read_start:insertion_pos] + te_seq[:clip_len]
+                        # Calculate position of insertion in read
+                        ins_pos_in_read = insertion_pos - read_start
 
+                        # Create sequence with insertion
+                        left_flank = ref_seq[read_start:insertion_pos]
+                        right_flank = ref_seq[insertion_pos:read_start + read_len]
+                        query_seq = left_flank + te_seq + right_flank
+
+                        # Create CIGAR: Match left, Insertion, Match right
                         a.cigartuples = [
-                            (0, match_len),    # Match
-                            (4, clip_len)      # Soft clip (TE sequence)
+                            (0, len(left_flank)),      # Match
+                            (1, len(te_seq)),           # Insertion
+                            (0, len(right_flank))       # Match
                         ]
 
                         a.reference_start = read_start
+                        a.query_sequence = query_seq
+                        a.query_qualities = pysam.qualitystring_to_array("I" * len(query_seq))
+
                     else:
-                        # Right-side read with left soft-clip
-                        match_start = insertion_pos
-                        match_len = random.randint(1000, 1500)
-                        clip_len = random.randint(150, 250)  # Part of TE sequence
+                        # Partially covering reads (soft-clipped at insertion site)
+                        if random.random() < 0.5:
+                            # Left-side read with right soft-clip
+                            read_start = random.randint(insertion_pos - 1000, insertion_pos - 100)
+                            match_len = insertion_pos - read_start
+                            clip_len = random.randint(150, 250)  # Part of TE sequence
 
-                        query_seq = te_seq[-clip_len:] + ref_seq[match_start:match_start + match_len]
+                            query_seq = ref_seq[read_start:insertion_pos] + te_seq[:clip_len]
 
-                        a.cigartuples = [
-                            (4, clip_len),     # Soft clip (TE sequence)
-                            (0, match_len)     # Match
-                        ]
+                            a.cigartuples = [
+                                (0, match_len),    # Match
+                                (4, clip_len)      # Soft clip (TE sequence)
+                            ]
 
-                        a.reference_start = match_start
+                            a.reference_start = read_start
+                        else:
+                            # Right-side read with left soft-clip
+                            match_start = insertion_pos
+                            match_len = random.randint(1000, 1500)
+                            clip_len = random.randint(150, 250)  # Part of TE sequence
 
+                            query_seq = te_seq[-clip_len:] + ref_seq[match_start:match_start + match_len]
+
+                            a.cigartuples = [
+                                (4, clip_len),     # Soft clip (TE sequence)
+                                (0, match_len)     # Match
+                            ]
+
+                            a.reference_start = match_start
+
+                        a.query_sequence = query_seq
+                        a.query_qualities = pysam.qualitystring_to_array("I" * len(query_seq))
+
+                # Additional reads: distributed across genome for full coverage
+                else:
+                    if i < 14:
+                        # Reads at beginning (for ins_002 at 0-200)
+                        read_start = random.randint(0, 500)
+                        read_len = random.randint(500, 1000)
+                    elif i < 17:
+                        # Reads at 35000-36000 region (for ins_003 at 35000-35250)
+                        read_start = random.randint(34500, 35500)
+                        read_len = random.randint(1000, 2000)
+                    else:
+                        # Reads at end
+                        read_start = random.randint(len(ref_seq) - 5000, len(ref_seq) - 500)
+                        read_len = random.randint(500, 1000)
+
+                    read_end = min(read_start + read_len, len(ref_seq))
+                    actual_len = read_end - read_start
+
+                    query_seq = ref_seq[read_start:read_end]
+
+                    a.cigartuples = [(0, actual_len)]  # All match
+                    a.reference_start = read_start
                     a.query_sequence = query_seq
                     a.query_qualities = pysam.qualitystring_to_array("I" * len(query_seq))
 
             else:
                 # No insertion - normal reads spanning the region
-                read_start = random.randint(start_region, insertion_pos - 500)
-                read_len = random.randint(2000, 4000)
+                # Distribute reads across the genome
+                if i < num_reads // 4:
+                    # Reads at beginning (for ins_002 at 0-200)
+                    read_start = random.randint(0, 500)
+                    read_len = random.randint(500, 1000)
+                elif i < 2 * num_reads // 4:
+                    # Reads around insertion region
+                    read_start = random.randint(insertion_pos - 3000, insertion_pos + 3000)
+                    read_len = random.randint(2000, 4000)
+                elif i < 3 * num_reads // 4:
+                    # Reads at 35000-36000 region (for ins_003 at 35000-35250)
+                    read_start = random.randint(34500, 35500)
+                    read_len = random.randint(1000, 2000)
+                else:
+                    # Reads at end
+                    read_start = random.randint(len(ref_seq) - 5000, len(ref_seq) - 500)
+                    read_len = random.randint(500, 1000)
+
                 read_end = min(read_start + read_len, len(ref_seq))
                 actual_len = read_end - read_start
 

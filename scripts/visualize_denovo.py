@@ -232,6 +232,9 @@ class IGVStyleVisualizer:
         """
         Create IGV-style visualization of de novo insertion.
 
+        Displays three BAM tracks (Child, Mom, Dad) with the insertion region
+        highlighted in semi-transparent gray on the child track.
+
         Args:
             child_bam, mom_bam, dad_bam: BAM file paths
             chrom: chromosome name
@@ -255,44 +258,44 @@ class IGVStyleVisualizer:
         logger.info(f"  Mom:   {len(mom_reads)} reads")
         logger.info(f"  Dad:   {len(dad_reads)} reads")
 
-        # Create figure
+        # Create figure with IGV-style layout
         fig, axes = plt.subplots(4, 1, figsize=self.figsize,
-                                gridspec_kw={'height_ratios': [1, 3, 3, 3]})
-        fig.suptitle(f'De Novo Insertion: {chrom}:{bp_left}-{bp_right}',
-                    fontsize=16, fontweight='bold')
+                                gridspec_kw={'height_ratios': [0.8, 3, 3, 3]})
+        fig.suptitle(f'De Novo Insertion: {chrom}:{bp_left:,}-{bp_right:,}',
+                    fontsize=16, fontweight='bold', y=0.98)
 
-        # Plot 1: Genomic coordinates
+        # Plot 1: Genomic coordinates ruler (IGV-style)
         ax_coord = axes[0]
         ax_coord.set_xlim(view_start, view_end)
         ax_coord.set_ylim(-0.5, 0.5)
         ax_coord.axis('off')
 
-        # Draw coordinate ruler
+        # Draw coordinate ruler line
         coord_y = 0
         ax_coord.plot([view_start, view_end], [coord_y, coord_y], 'k-', linewidth=2)
 
-        # Add tick marks
+        # Add tick marks and labels
         num_ticks = 5
         for i in range(num_ticks + 1):
             tick_x = view_start + (view_end - view_start) * i / num_ticks
             ax_coord.plot([tick_x, tick_x], [coord_y - 0.1, coord_y + 0.1], 'k-', linewidth=1)
-            ax_coord.text(tick_x, coord_y - 0.3, f'{int(tick_x):,}',
+            ax_coord.text(tick_x, coord_y - 0.25, f'{int(tick_x):,}',
                          ha='center', va='top', fontsize=9)
 
-        # Highlight insertion region
-        ax_coord.axvspan(bp_left, bp_right, alpha=0.3, color=self.colors['highlight'])
-        ax_coord.text((bp_left + bp_right) / 2, 0.3, 'Insertion',
+        # Highlight insertion region on coordinate track
+        ax_coord.axvspan(bp_left, bp_right, alpha=0.4, color=self.colors['highlight'])
+        ax_coord.text((bp_left + bp_right) / 2, 0.4, 'De Novo Insertion',
                      ha='center', va='bottom', fontsize=10, fontweight='bold',
                      color='darkred')
 
-        # Plot 2-4: Child, Mom, Dad tracks
+        # Plot 2-4: Child, Mom, Dad tracks (IGV-style)
         tracks = [
             (axes[1], child_reads, 'Child', self.colors['child'], True),
             (axes[2], mom_reads, 'Mom', self.colors['mom'], False),
             (axes[3], dad_reads, 'Dad', self.colors['dad'], False)
         ]
 
-        for ax, reads, name, color, show_insertion in tracks:
+        for ax, reads, name, color, is_child in tracks:
             ax.set_xlim(view_start, view_end)
             ax.set_ylim(-21, 1)
             ax.set_yticks([])
@@ -308,14 +311,15 @@ class IGVStyleVisualizer:
                 ax.set_xlabel('Genomic Position (bp)', fontsize=11)
                 ax.tick_params(axis='x', labelsize=9)
 
-            # Plot the track
-            insertion_region = (bp_left, bp_right) if show_insertion else None
+            # Plot the track with highlight on child track
+            insertion_region = (bp_left, bp_right) if is_child else None
             num_rows = self.plot_track(ax, reads, name, color,
                                       view_start, view_end,
                                       insertion_region=insertion_region,
-                                      y_offset=0, max_rows=20)
+                                      y_offset=0, max_rows=20,
+                                      is_child_track=is_child)
 
-        # Add metadata if provided
+        # Add metadata panel if provided
         if candidate_info:
             info_text = f"UUID: {candidate_info.get('uuid', 'N/A')}\n"
             info_text += f"TE Family: {candidate_info.get('te_family', 'N/A')}\n"
@@ -331,22 +335,26 @@ class IGVStyleVisualizer:
                     horizontalalignment='right',
                     bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-        # Add legend
+        # Add legend (IGV-style)
         legend_elements = [
-            mpatches.Patch(facecolor=self.colors['match'], label='Match', alpha=0.7),
-            mpatches.Patch(facecolor='#8B008B', label='Insertion', alpha=0.9),
+            mpatches.Patch(facecolor=self.colors['match'], edgecolor='#404040',
+                          label='Aligned reads', alpha=0.85),
             mpatches.Patch(facecolor=self.colors['insertion'],
+                          label='Insertion (CIGAR)', alpha=0.95),
+            mpatches.Patch(facecolor=self.colors['highlight'],
                           edgecolor=self.colors['highlight'],
-                          label='De Novo Region', alpha=0.3, linewidth=2)
+                          label='De Novo region (gray highlight)', alpha=self.colors['highlight_alpha'])
         ]
         fig.legend(handles=legend_elements, loc='upper left',
-                  bbox_to_anchor=(0.01, 0.98), fontsize=9)
+                  bbox_to_anchor=(0.01, 0.97), fontsize=9,
+                  frameon=True, facecolor='white', edgecolor='gray')
 
         plt.tight_layout()
+        plt.subplots_adjust(top=0.93)
 
         # Save or show
         if output_file:
-            plt.savefig(output_file, dpi=300, bbox_inches='tight')
+            plt.savefig(output_file, dpi=300, bbox_inches='tight', facecolor='white')
             logger.info(f"Saved visualization: {output_file}")
         else:
             plt.show()

@@ -536,8 +536,21 @@ if __name__ == '__main__':
     parser.add_argument('--wiggle', type=int, default=30, help='Window around breakpoint')
     parser.add_argument('--depth_window', type=int, default=100, help='Window for depth')
     parser.add_argument('--denovo', action='store_true', help='Run de novo evaluation')
+    parser.add_argument('--child_bam', help='Child BAM file (required for visualization)')
+    parser.add_argument('--visualize', action='store_true',
+                       help='Generate IGV-style visualizations for candidates')
+    parser.add_argument('--visualize_dir', default='denovo_visualizations',
+                       help='Directory for visualization output')
+    parser.add_argument('--visualize_window', type=int, default=500,
+                       help='Base pairs to show on each side of insertion')
+    parser.add_argument('--visualize_filter', choices=['PASS_DENOVO', 'UNCERTAIN', 'FAIL'],
+                       help='Only visualize candidates with this evaluation')
 
     args = parser.parse_args()
+
+    # Validate visualization arguments
+    if args.visualize and not args.child_bam:
+        parser.error('--visualize requires --child_bam')
 
     # Load candidates
     if args.candidates.endswith('.txt'):
@@ -559,3 +572,26 @@ if __name__ == '__main__':
         json.dump(results, f, indent=2)
 
     print(f'Saved {len(results)} results to {args.output}')
+
+    # Generate visualizations if requested
+    if args.visualize:
+        try:
+            from visualize_denovo import visualize_from_parent_analysis
+
+            print(f'\nGenerating IGV-style visualizations...')
+            visualize_from_parent_analysis(
+                args.output,
+                args.child_bam,
+                args.mom_bam,
+                args.dad_bam,
+                output_dir=args.visualize_dir,
+                filter_evaluation=args.visualize_filter
+            )
+
+            # Print summary
+            filter_desc = f" (filter: {args.visualize_filter})" if args.visualize_filter else ""
+            print(f'\nVisualization complete! Output saved to: {args.visualize_dir}/{filter_desc}')
+
+        except ImportError as e:
+            print(f'Warning: Could not import visualization module: {e}')
+            print('To enable visualization, ensure visualize_denovo.py is in the same directory.')
