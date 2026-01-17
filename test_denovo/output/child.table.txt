@@ -1,0 +1,4 @@
+Chromosome	Start	End	UUID	Superfamily	Subfamily	StartTE	EndTE	Strand	LengthIns	Inversion	UnmapCover	MedianMapQ	TEMatch	UsedReads	SpanReads	NumSamples	SampleReads	EmptyReads	EmptyPhase	NonRef	TSD	Consensus	Phasing	Remappable	Filter	bp_left	bp_right	wiggle	TE_family	child_support
+chr1	24900	25100	ins_001_denovo	LINE	L1HS	1	300	+	300	N	0.95	60	0.98	10	10	1	child|10	0	NA	NA	TGAC	TGACatcgatcgatcgatcgatcgTGAC	NA	True	PASS	25000	25300	50	L1HS	useable:10,embedded:10
+chr1	0	200	ins_002_coord_zero	SINE	Alu	1	200	+	200	N	0.92	55	0.96	8	8	1	child|8	0	NA	NA	AGCT	AGCTgatcgatcgatcgatcgAGCT	NA	True	PASS	0	200	50	Alu	useable:8,embedded:8
+chr1	34900	35100	ins_003_inherited	LINE	L1PA2	1	250	-	250	N	0.90	58	0.94	12	12	1	child|12	0	NA	NA	CGAT	CGATtcgatcgatcgatcgatCGAT	NA	True	PASS	35000	35250	50	L1PA2	useable:12,embedded:12

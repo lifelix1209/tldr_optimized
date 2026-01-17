@@ -87,7 +87,16 @@ def find_softclip_reads(bam, chrom, bp_left, bp_right, wiggle=30):
             for i, cig in enumerate(read.cigartuples):
                 if cig[0] == 4:  # Soft clip
                     clip_end = 'left' if i == 0 else 'right'
-                    clip_pos_in_read = cig[1] if i == 0 else sum(c[1] for c in read.cigartuples[:i])
+
+                    # Calculate position in query sequence correctly
+                    # CIGAR ops that consume query: M(0), I(1), S(4), =(7), X(8)
+                    if i == 0:  # Left clip
+                        clip_pos_in_read = 0
+                        clip_length = cig[1]
+                    else:  # Right clip
+                        # Sum all query-consuming operations before this clip
+                        clip_pos_in_read = sum(c[1] for c in read.cigartuples[:i] if c[0] in [0, 1, 4, 7, 8])
+                        clip_length = cig[1]
 
                     if clip_end == 'left':
                         bp_dist = abs(ref_pos - bp_left)
@@ -95,12 +104,25 @@ def find_softclip_reads(bam, chrom, bp_left, bp_right, wiggle=30):
                         bp_dist = abs((ref_pos + read.query_length) - bp_right)
 
                     if bp_dist <= wiggle:
+                        # Extract sequence around clip junction with null safety
+                        clip_seq = ''
+                        if read.query_sequence:
+                            if clip_end == 'left':
+                                # For left clip, get end of clipped sequence
+                                start_pos = max(0, clip_length - 10)
+                                end_pos = min(clip_length + 10, len(read.query_sequence))
+                            else:
+                                # For right clip, get start of clipped sequence
+                                start_pos = max(0, clip_pos_in_read - 10)
+                                end_pos = min(clip_pos_in_read + 10, len(read.query_sequence))
+                            clip_seq = read.query_sequence[start_pos:end_pos]
+
                         softclip_reads.append({
                             'read_name': read.query_name,
                             'clip_end': clip_end,
                             'ref_pos': ref_pos,
                             'bp_dist': bp_dist,
-                            'seq': read.query_sequence[max(0, clip_pos_in_read-10):clip_pos_in_read+10] if clip_pos_in_read < len(read.query_sequence) else ''
+                            'seq': clip_seq
                         })
 
     except Exception as e:
@@ -127,10 +149,11 @@ def find_insertion_cigar_reads(bam, chrom, bp_left, bp_right, wiggle=30):
 
             ref_pos = read.reference_start
 
-            for i, cig in enumerate(read.cigartuples):
+            for cig in read.cigartuples:
                 op, length = cig
 
                 if op == 1:  # Insertion
+                    # Check if insertion is near either breakpoint
                     bp_dist = None
                     if bp_left - wiggle <= ref_pos <= bp_left + wiggle:
                         bp_dist = abs(ref_pos - bp_left)
@@ -144,9 +167,11 @@ def find_insertion_cigar_reads(bam, chrom, bp_left, bp_right, wiggle=30):
                             'ins_length': length,
                             'bp_dist': bp_dist
                         })
+                    # Insertion does not consume reference, so ref_pos stays the same
 
-                if op in (0, 2, 3, 7, 8):  # Consumes reference
+                elif op in (0, 2, 3, 7, 8):  # Consumes reference: M, D, N, =, X
                     ref_pos += length
+                # Note: I(1), S(4), H(5), P(6) do not consume reference
 
     except Exception as e:
         logger.warning(f'Error finding insertions for {chrom}:{bp_left}-{bp_right}: {e}')
@@ -208,21 +233,54 @@ def calculate_alt_support_parent(bam, chrom, bp_left, bp_right, wiggle=30, use_t
 
 def _normalize_candidate(cand):
     """
-    Normalize tldr output dict to internal format.
+    Normalize tldr output dict to internal format with type conversion.
 
     Args:
         cand: dict from tldr --denovo output
 
     Returns:
-        dict with normalized fields
+        dict with normalized fields, or None if invalid
     """
+    bp_left_val = cand.get('bp_left')
+    bp_right_val = cand.get('bp_right')
+    te_family_val = cand.get('TE_family')
+
+    # Determine breakpoint values with fallback
+    bp_left = bp_left_val if bp_left_val is not None else cand.get('Start')
+    bp_right = bp_right_val if bp_right_val is not None else cand.get('End')
+
+    # Convert to int with validation
+    try:
+        # Handle 'NA' and empty strings
+        if bp_left == 'NA' or bp_left == '' or bp_left is None:
+            logger.warning(f"Invalid bp_left for candidate {cand.get('UUID')}: {bp_left}")
+            return None
+        if bp_right == 'NA' or bp_right == '' or bp_right is None:
+            logger.warning(f"Invalid bp_right for candidate {cand.get('UUID')}: {bp_right}")
+            return None
+
+        bp_left = int(bp_left)
+        bp_right = int(bp_right)
+
+        # Sanity check
+        if bp_left < 0 or bp_right < 0:
+            logger.warning(f"Negative coordinates for {cand.get('UUID')}: {bp_left}, {bp_right}")
+            return None
+        if bp_right <= bp_left:
+            logger.warning(f"Invalid coordinate order for {cand.get('UUID')}: {bp_left} >= {bp_right}")
+            return None
+
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Failed to convert breakpoints for {cand.get('UUID')}: {e}")
+        return None
+
     return {
         'uuid': cand.get('UUID'),
-        'chrom': cand.get('Chrom'),
-        'bp_left': cand.get('bp_left') or cand.get('Start'),
-        'bp_right': cand.get('bp_right') or cand.get('End'),
+        'chrom': cand.get('Chrom') or cand.get('Chromosome'),
+        'bp_left': bp_left,
+        'bp_right': bp_right,
         'strand': cand.get('Strand', '+'),
-        'te_family': cand.get('TE_family') or cand.get('Family'),
+        'te_family': te_family_val if te_family_val is not None else cand.get('Family'),
         'child_support': cand.get('child_support')
     }
 
@@ -247,8 +305,13 @@ def analyze_parent_support(mom_bam_path, dad_bam_path, child_candidates,
     """
     results = []
 
-    # Normalize candidates
+    # Normalize candidates and filter out invalid ones
     normalized = [_normalize_candidate(c) for c in child_candidates]
+    normalized = [n for n in normalized if n is not None]
+
+    if not normalized:
+        logger.error('No valid candidates after normalization')
+        return results
 
     mom_bam = None
     dad_bam = None
@@ -257,7 +320,7 @@ def analyze_parent_support(mom_bam_path, dad_bam_path, child_candidates,
         mom_bam = pysam.AlignmentFile(mom_bam_path, 'rb')
         dad_bam = pysam.AlignmentFile(dad_bam_path, 'rb')
 
-        logger.info(f'Analyzing {len(normalized)} candidates from Mom: {mom_bam_path}, Dad: {dad_bam_path}')
+        logger.info(f'Analyzing {len(normalized)} valid candidates from Mom: {mom_bam_path}, Dad: {dad_bam_path}')
 
         for i, cand in enumerate(normalized):
             if (i + 1) % 100 == 0:

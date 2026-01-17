@@ -2382,19 +2382,20 @@ def main(args):
                     output['Filter']      = assign_filter(output, c_unmap, args, noref_mode, cluster_forest)
 
                     # denovo mode output fields
-                    if args.denovo and hasattr(cluster, 'denovo_info'):
-                        denovo_info = cluster.denovo_info
-                        output['bp_left']     = denovo_info['bp_left']
-                        output['bp_right']    = denovo_info['bp_right']
-                        output['wiggle']      = denovo_info['wiggle']
-                        output['TE_family']   = denovo_info['TE_family']
-                        output['child_support'] = denovo_info['child_support']
-                    else:
-                        output['bp_left']     = 'NA'
-                        output['bp_right']    = 'NA'
-                        output['wiggle']      = 'NA'
-                        output['TE_family']   = 'NA'
-                        output['child_support'] = 'NA'
+                    if args.denovo:
+                        if hasattr(cluster, 'denovo_info'):
+                            denovo_info = cluster.denovo_info
+                            output['bp_left']     = denovo_info['bp_left']
+                            output['bp_right']    = denovo_info['bp_right']
+                            output['wiggle']      = denovo_info['wiggle']
+                            output['TE_family']   = denovo_info['TE_family']
+                            output['child_support'] = denovo_info['child_support']
+                        else:
+                            output['bp_left']     = 'NA'
+                            output['bp_right']    = 'NA'
+                            output['wiggle']      = 'NA'
+                            output['TE_family']   = 'NA'
+                            output['child_support'] = 'NA'
 
                     detail = od()
 
