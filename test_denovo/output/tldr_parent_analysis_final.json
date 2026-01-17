@@ -1,0 +1,82 @@
+[
+  {
+    "uuid": "496aacde-9784-43ca-a140-224c1db3623f",
+    "chrom": "chr1",
+    "bp_left": 4800,
+    "bp_right": 4999,
+    "te_family": "NA",
+    "min_parent_depth": 8,
+    "mom_depth": 23.0,
+    "dad_depth": 23.0,
+    "mom_alt": 23,
+    "dad_alt": 0,
+    "evaluation": "FAIL",
+    "reasons": [
+      "Mom alt too high (23)"
+    ]
+  },
+  {
+    "uuid": "335e5b22-25d9-4b87-b598-706c97b96a0a",
+    "chrom": "chr1",
+    "bp_left": 14800,
+    "bp_right": 14999,
+    "te_family": "NA",
+    "min_parent_depth": 8,
+    "mom_depth": 14.0,
+    "dad_depth": 14.0,
+    "mom_alt": 0,
+    "dad_alt": 14,
+    "evaluation": "FAIL",
+    "reasons": [
+      "Dad alt too high (14)"
+    ]
+  },
+  {
+    "uuid": "d43846f6-3b14-4347-b142-d91597a0d7aa",
+    "chrom": "chr1",
+    "bp_left": 19800,
+    "bp_right": 19999,
+    "te_family": "NA",
+    "min_parent_depth": 8,
+    "mom_depth": 9.0,
+    "dad_depth": 9.0,
+    "mom_alt": 0,
+    "dad_alt": 9,
+    "evaluation": "FAIL",
+    "reasons": [
+      "Dad alt too high (9)"
+    ]
+  },
+  {
+    "uuid": "f6b229a7-dcc1-4dd0-9597-759eb4d548c5",
+    "chrom": "chr1",
+    "bp_left": 24800,
+    "bp_right": 24999,
+    "te_family": "NA",
+    "min_parent_depth": 8,
+    "mom_depth": 9.0,
+    "dad_depth": 10.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "PASS_DENOVO",
+    "reasons": [
+      "Passed all criteria"
+    ]
+  },
+  {
+    "uuid": "5a395766-ecf2-4d0e-bcb2-4c2758881e61",
+    "chrom": "chr1",
+    "bp_left": 29800,
+    "bp_right": 29999,
+    "te_family": "NA",
+    "min_parent_depth": 8,
+    "mom_depth": 4.0,
+    "dad_depth": 4.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "UNCERTAIN",
+    "reasons": [
+      "Both parents have insufficient depth"
+    ]
+  }
+]

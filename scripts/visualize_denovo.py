@@ -394,9 +394,11 @@ def visualize_from_parent_analysis(parent_analysis_json, child_bam, mom_bam, dad
         if filter_evaluation and evaluation != filter_evaluation:
             continue
 
-        chrom = result.get('chrom')
+        chrom = result.get('chrom') or result.get('Chrom')
         bp_left = result.get('bp_left')
         bp_right = result.get('bp_right')
+        uuid = result.get('uuid') or result.get('UUID')
+        te_family = result.get('te_family') or result.get('TE_family')
 
         if not all([chrom, bp_left is not None, bp_right is not None]):
             logger.warning(f"Skipping {uuid}: missing coordinates")
