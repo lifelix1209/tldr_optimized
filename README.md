@@ -79,9 +79,28 @@ python setup.py install
 
 # Running tldr
 
+## Basic Analysis
+
 Synopsis (minimal input requirements), assuming reads aligned to hg38 using minimap2:
 ```
 tldr -b aligned_reads.bam -e /path/to/tldr/ref/teref.ont.human.fa -r /path/to/minimap2-indexed/reference/genome.fasta --color_consensus
+```
+
+## De Novo (Trio) Analysis
+
+For family trio analysis to identify de novo TE insertions:
+
+```
+# Step 1: Run on child sample with --denovo flag
+tldr -b child.bam -e ref/teref.ont.human.fa -r genome.fasta --denovo -p 8 -o child_output
+
+# Step 2: Analyze parent support
+python scripts/parent_support.py \
+    --mom_bam mother.bam \
+    --dad_bam father.bam \
+    --candidates child_output.table.txt \
+    --output parent_analysis.json \
+    --denovo
 ```
 
 ## Command-line Options
@@ -130,7 +149,10 @@ Parameter for allowing base changes in consensus cleanup (default = 0.25)
 Limit cluster size and downsample clusters larger than the cutoff (default = no limit). Downsampling is biased such that reads completely embedding the inserted sequence are preferred.
 
 ### --wiggle
-Allows for sloppy breakpoints in initial breakpoint search (default = 50)
+Allows for sloppy breakpoints in initial breakpoint search (default = 200)
+
+### --denovo
+Enable de novo candidate generation mode for trio analysis. Outputs lightweight results suitable for parent support analysis. Adds additional columns: `bp_left`, `bp_right`, `wiggle`, `TE_family`, `child_support`. Designed for child-side only candidate discovery in trio (Mom/Dad/Child) workflows.
 
 ### --flanksize
 Trim reads to contain at most `--flanksize` bases on either side of the insertion. Setting too large makes consensus building slower and more error-prone.
@@ -213,6 +235,117 @@ Phase/Haplotype info for filled site reads (requires PS/HP tags to be present)
 ### Filter
 Annotate whether an insertion call is problematic; "PASS" otherwise (similar to VCF filter column).
 
+### De Novo Output Columns
+When running with `--denovo` flag, additional columns are added to the output:
+
+| Column | Description |
+|--------|-------------|
+| `bp_left` | Left breakpoint coordinate |
+| `bp_right` | Right breakpoint coordinate |
+| `wiggle` | Wiggle parameter used for clustering |
+| `TE_family` | TE family/subfamily classification |
+| `child_support` | Read support summary (e.g., "useable:10,embedded:5") |
+
+## De Novo Analysis
+
+The de novo analysis pipeline enables trio analysis to identify potential de novo TE insertions in a child that are not present in either parent.
+
+### Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. Child Analysis (tldr --denovo)                                  │
+│     tldr -b child.bam -e ref.fa -r genome.fa --denovo -o child      │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  2. Parent Support Analysis (parent_support.py)                     │
+│     python scripts/parent_support.py \                              │
+│         --mom_bam mom.bam \                                         │
+│         --dad_bam dad.bam \                                         │
+│         --candidates child.table.txt \                              │
+│         --output parent_analysis.json \                             │
+│         --denovo                                                    │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  3. Results Evaluation                                              │
+│                                                                     │
+│     Categories:                                                     │
+│     - PASS_DENOVO: Meets all criteria for de novo                   │
+│     - UNCERTAIN: Parent coverage insufficient                       │
+│     - FAIL: Parent shows alt support                                │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Child Analysis
+
+```bash
+# Run tldr on child sample with --denovo flag
+tldr -b child.bam \
+     -e ref/teref.ont.human.fa \
+     -r genome.fasta \
+     --denovo \
+     -p 8 \
+     -o child_output
+```
+
+### Parent Support Analysis
+
+```bash
+# Analyze parent BAM files for supporting evidence
+python scripts/parent_support.py \
+    --mom_bam mother.bam \
+    --dad_bam father.bam \
+    --candidates child_output.table.txt \
+    --output parent_analysis.json \
+    --denovo
+
+# With optional TE-enhanced soft-clip alignment
+python scripts/parent_support.py \
+    --mom_bam mother.bam \
+    --dad_bam father.bam \
+    --candidates child_output.table.txt \
+    --output parent_analysis.json \
+    --denovo \
+    --te_enhance
+```
+
+### Evaluation Criteria
+
+The de novo evaluation uses the following thresholds:
+
+- **Minimum parent depth**: `max(8, 0.25 * median_parent_depth)`
+  - Ensures adequate coverage in both parents
+  - Floor of 8 reads, scaled by 25% of median depth
+- **Maximum parent alt reads**: 0 (strict)
+  - No soft-clipped or insertion CIGAR reads allowed near breakpoints
+- **Breakpoint precision**: Not explicitly validated by parent_support.py
+  - Child-side precision controlled by `--wiggle` parameter
+
+### Output Fields
+
+Parent analysis results include:
+
+| Field | Description |
+|-------|-------------|
+| `uuid` | Candidate identifier |
+| `chrom` | Chromosome |
+| `bp_left`, `bp_right` | Breakpoint coordinates |
+| `te_family` | TE family |
+| `mom_depth_mean` | Median depth in mother |
+| `dad_depth_mean` | Median depth in father |
+| `mom_softclip` | Soft-clip reads in mother |
+| `dad_softclip` | Soft-clip reads in father |
+| `mom_insertion` | Insertion CIGAR reads in mother |
+| `dad_insertion` | Insertion CIGAR reads in father |
+| `mom_total_alt` | Total alt support in mother |
+| `dad_total_alt` | Total alt support in father |
+| `evaluation` | PASS_DENOVO / UNCERTAIN / FAIL |
+| `reasons` | Detailed evaluation reasons |
+
 ## Methylation
 
 Non-reference methylation can be assessed through the use of scripts located in the `scripts/` directory:
@@ -222,6 +355,7 @@ Non-reference methylation can be assessed through the use of scripts located in 
 | tldr_callmeth.sh      | Must be run from within the diretory where `nanopolish index` was run to index a .fastq file against a set of ONT .fast5 files. Takes as input a .fastq (indexed via `nanopolish index`), an output directory created via the `--detail_output` option, a UUID and a sample name. Creates a tabix indexed table from the output of nanopolish call-methylation on the sample+uuid combination. Can be automated via xargs or GNU parallel. |
 | tablemeth_nonref.py   | Creates a table with per-element mCpG summary data given a tldr output table and the directory created by `--detail_output`. Only considers element + sample combinations from the tldr table where `tldr_callmeth.sh` has been run. Requires pysam, pandas, numpy, and scipy. |
 | plotmeth_nonref.py    | Makes a plot of a TE (requires running `tldr_callmeth.sh` first) plus the surrounding region if `--extend_consensus` is specified. Tracks include translation to CpG space, raw log-likelihood, and smoothed methylation fraction. Requires pysam, pandas, numpy, scipy, matplotlib, and seaborn. |
+| parent_support.py     | Parent support analysis for de novo TE detection. Analyzes Mom/Dad BAM files to compute depth and alt support for child candidate sites identified with `tldr --denovo`. Outputs JSON with PASS_DENOVO/UNCERTAIN/FAIL classification. Requires pysam and numpy. |
 
 ## Reference TEs
 

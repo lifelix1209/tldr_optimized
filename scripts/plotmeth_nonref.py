@@ -472,8 +472,14 @@ def main(args):
         coord_to_cpg[orig_loc] = new_loc
 
     for i in range(len(h_start)):
-        h_cpg_start.append(coord_to_cpg[min(meth_table['orig_loc'], key=lambda x:abs(x-h_start[i]))])
-        h_cpg_end.append(coord_to_cpg[min(meth_table['orig_loc'], key=lambda x:abs(x-h_end[i]))])
+        if len(meth_table['orig_loc']) == 0:
+            h_cpg_start.append(0)
+            h_cpg_end.append(0)
+        else:
+            closest_start = min(meth_table['orig_loc'], key=lambda x: abs(x - h_start[i]))
+            closest_end = min(meth_table['orig_loc'], key=lambda x: abs(x - h_end[i]))
+            h_cpg_start.append(coord_to_cpg.get(closest_start, 0))
+            h_cpg_end.append(coord_to_cpg.get(closest_end, 0))
 
     fig = plt.figure()
 

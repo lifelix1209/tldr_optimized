@@ -6,12 +6,15 @@ from collections import Counter
 import os
 import pysam
 import argparse
+import logging
 
 import pandas as pd
 import numpy as np
 import scipy.stats as ss
 
 import gzip
+
+logger = logging.getLogger(__name__)
 
 
 class Read:
@@ -166,7 +169,11 @@ def main(args):
 
             chrom = uuid
 
-            h_start, h_end = sorted_unmapped_segments(cons_seq)[0]  # defines TE start / end positions in contig
+            segments = sorted_unmapped_segments(cons_seq)
+            if not segments or segments[0][1] - segments[0][0] <= 0:
+                logger.warning(f'No valid segments for {uuid}, skipping')
+                continue
+            h_start, h_end = segments[0]  # defines TE start / end positions in contig
 
             # get relevant genome chunk to tmp tsv
 

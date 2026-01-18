@@ -49,31 +49,31 @@ def align(qryseq, refseq, elt='PAIR', minmatch=85.0):
     tgtfa = 'tmp.' + rnd + '.tgt.fa'
     qryfa = 'tmp.' + rnd + '.qry.fa'
 
-    tgt = open(tgtfa, 'w')
-    qry = open(qryfa, 'w')
+    try:
+        with open(tgtfa, 'w') as tgt:
+            tgt.write('>ref' + '\n' + refseq + '\n')
+        with open(qryfa, 'w') as qry:
+            qry.write('>qry' + '\n' + qryseq + '\n')
 
-    tgt.write('>ref' + '\n' + refseq + '\n')
-    qry.write('>qry' + '\n' + qryseq + '\n')
+        cmd = ['exonerate', '--bestn', '1', '-m', 'ungapped', '--showalignment','0', '--ryo', elt + '\t%s\t%qab\t%qae\t%tab\t%tae\t%pi\t%qS\t%tS\n', qryfa, tgtfa]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    tgt.close()
-    qry.close()
+        best = []
+        topscore = 0
 
-    cmd = ['exonerate', '--bestn', '1', '-m', 'ungapped', '--showalignment','0', '--ryo', elt + '\t%s\t%qab\t%qae\t%tab\t%tae\t%pi\t%qS\t%tS\n', qryfa, tgtfa]
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    best = []
-    topscore = 0
-
-    for pline in p.stdout.readlines():
-        pline = pline.decode()
-        if pline.startswith(elt):
-            c = pline.strip().split()
-            if int(c[1]) > topscore and float(c[6]) >= minmatch:
-                topscore = int(c[1])
-                best = c
-
-    os.remove(tgtfa)
-    os.remove(qryfa)
+        for pline in p.stdout.readlines():
+            pline = pline.decode()
+            if pline.startswith(elt):
+                c = pline.strip().split()
+                if int(c[1]) > topscore and float(c[6]) >= minmatch:
+                    topscore = int(c[1])
+                    best = c
+    finally:
+        # Clean up temp files even on error
+        if os.path.exists(tgtfa):
+            os.remove(tgtfa)
+        if os.path.exists(qryfa):
+            os.remove(qryfa)
 
     return best
 

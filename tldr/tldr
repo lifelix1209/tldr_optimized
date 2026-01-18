@@ -278,6 +278,8 @@ class InsCluster:
 
     def interval(self):
         p = sorted([read.r_pos for read in self.reads if read.useable])
+        if not p:
+            return None, None
         return p[0], p[-1]
 
     def dump_fastq(self, te_fam=None, sample=None):
@@ -332,18 +334,27 @@ class InsCluster:
 
     def te_major_family(self):
         if self.reset_major_family is None:
-            return Counter([read.te_fam for read in self.reads]).most_common()[0][0]
+            family_counter = Counter([read.te_fam for read in self.reads])
+            if not family_counter:
+                return 'NA'
+            return family_counter.most_common(1)[0][0] if family_counter.most_common(1) else 'NA'
 
         return self.reset_major_family
 
     def te_major_subfam(self):
         if self.reset_major_subfam is None:
-            return Counter([read.te_subfam for read in self.reads]).most_common()[0][0]
+            subfam_counter = Counter([read.te_subfam for read in self.reads])
+            if not subfam_counter:
+                return 'NA'
+            return subfam_counter.most_common(1)[0][0] if subfam_counter.most_common(1) else 'NA'
 
         return self.reset_major_subfam
 
     def te_orientation(self):
-        return Counter([read.te_read_orient for read in self.reads]).most_common()[0][0]
+        orient_counter = Counter([read.te_read_orient for read in self.reads])
+        if not orient_counter:
+            return 'NA'
+        return orient_counter.most_common(1)[0][0] if orient_counter.most_common(1) else 'NA'
 
     def te_fam_frac(self, family):
         return float(len([r for r in self.reads if r.te_fam == family])) / float(len(self))
@@ -560,9 +571,9 @@ class InsCluster:
 
     def join_unmapped_segments(self, exp_flank_len, telib_seq, minlen=100, minfrac=0.7):
         segs = self.sorted_unmapped_segments()
-        assert len(segs) > 1
 
-        if segs[1][1] - segs[1][0] < minlen:
+        # Need at least 2 segments to join (first is the main insertion, second is flanking)
+        if len(segs) < 2 or segs[1][1] - segs[1][0] < minlen:
             return None
 
         # close enough to the expected flank length?
@@ -642,6 +653,9 @@ class InsCluster:
             if read.te_overlap_frac() > 0.0:
                 z[read.r_name] = read.te_overlap_frac()
 
+        if not z:
+            return z
+
         o_mean = np.mean(list(z.values()))
         o_std   = np.std(list(z.values()))
 
@@ -658,6 +672,9 @@ class InsCluster:
         z = {}
         for read in self.reads:
             z[read.r_name] = read.r_mapq
+
+        if not z:
+            return z
 
         o_mean = np.mean(list(z.values()))
         o_std   = np.std(list(z.values()))
@@ -842,10 +859,13 @@ def get_phase(read):
 
     if None not in (HP, PS):
         phase = str(PS) + ':' + str(HP)
-    
-    if PS is None and HP is not None:
-        phase=str(PS) + ':NA'
-    
+    elif PS is None and HP is not None:
+        phase = 'NA:NA'
+    elif PS is not None and HP is None:
+        phase = str(PS) + ':NA'
+    else:
+        phase = 'NA:NA'
+
     return phase
 
 
@@ -874,48 +894,53 @@ def te_align(te_fa, refseq, minmatch=80.0, te_fa_is_seq=False, max_segs=3):
 
     rnd = str(uuid4())
     tgt_fa = 'tmp.' + rnd + '.tgt.fa'
+    te_fa_temp = None
 
-    with open(tgt_fa, 'w') as tgt:
-        tgt.write('>ref\n%s\n' % refseq)
+    try:
+        with open(tgt_fa, 'w') as tgt:
+            tgt.write('>ref\n%s\n' % refseq)
 
-    if te_fa_is_seq:
-        te_seq = te_fa
-        te_fa = 'tmp.' + rnd + '.te.fa'
-        with open(te_fa, 'w') as te:
-            te.write('>te\n%s\n' % te_seq)
+        if te_fa_is_seq:
+            te_seq = te_fa
+            te_fa_temp = 'tmp.' + rnd + '.te.fa'
+            with open(te_fa_temp, 'w') as te:
+                te.write('>te\n%s\n' % te_seq)
+            te_fa_to_use = te_fa_temp
+        else:
+            te_fa_to_use = te_fa
 
-    cmd = ['exonerate', '--bestn', str(max_segs), '--model', 'affine:local', '--showalignment','0', '-g', '0', '--ryo', 'TE\t%qi\t%s\t%qab\t%qae\t%tab\t%tae\t%pi\t%qS\t%tS\n', te_fa, tgt_fa]
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        cmd = ['exonerate', '--bestn', str(max_segs), '--model', 'affine:local', '--showalignment','0', '-g', '0', '--ryo', 'TE\t%qi\t%s\t%qab\t%qae\t%tab\t%tae\t%pi\t%qS\t%tS\n', te_fa_to_use, tgt_fa]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    align_groups = {}
+        align_groups = {}
 
-    for pline in p.stdout.readlines():
-        pline = pline.decode()
-        if pline.startswith('TE'):
-            a = ExonerateAlignment(pline.strip())
-            if a.match >= minmatch:
-                if a.subfamily in align_groups:
-                    align_groups[a.subfamily].add_alignment(a)
+        for pline in p.stdout.readlines():
+            pline = pline.decode()
+            if pline.startswith('TE'):
+                a = ExonerateAlignment(pline.strip())
+                if a.match >= minmatch:
+                    if a.subfamily in align_groups:
+                        align_groups[a.subfamily].add_alignment(a)
 
-                else:
-                    align_groups[a.subfamily] = AlignmentGroup(a)
+                    else:
+                        align_groups[a.subfamily] = AlignmentGroup(a)
 
-    
-    os.remove(tgt_fa)
+        best_group = None
 
-    if te_fa_is_seq:
-        os.remove(te_fa)
+        for subfam in align_groups:
+            if best_group is None:
+                best_group = align_groups[subfam]
 
-    best_group = None
+            elif align_groups[subfam].best_score() > best_group.best_score():
+                best_group = align_groups[subfam]
 
-    for subfam in align_groups:
-        if best_group is None:
-            best_group = align_groups[subfam]
-
-        elif align_groups[subfam].best_score() > best_group.best_score():
-            best_group = align_groups[subfam]
-
-    return best_group
+        return best_group
+    finally:
+        # Clean up temp files even on error
+        if os.path.exists(tgt_fa):
+            os.remove(tgt_fa)
+        if te_fa_temp and os.path.exists(te_fa_temp):
+            os.remove(te_fa_temp)
 
 
 def load_falib(infa):
@@ -1475,7 +1500,12 @@ def process_cluster(cluster, inslib, outbase, args, noref_mode):
                 if cluster.cons_te_align is not None and len(cluster.sorted_unmapped_segments()) > 1:
                     logger.debug('joining multiple segments for cluster %s' % cluster.uuid)
 
-                    joined_cons = cluster.join_unmapped_segments(int(args.flanksize), inslib[cluster.cons_te_align.subfamily()])
+                    subfam = cluster.cons_te_align.subfamily()
+                    if subfam in inslib:
+                        joined_cons = cluster.join_unmapped_segments(int(args.flanksize), inslib[subfam])
+                    else:
+                        logger.debug('subfamily %s not in inslib, skipping segment join for cluster %s' % (subfam, cluster.uuid))
+                        joined_cons = None
 
                     if joined_cons is not None:
                         # repeat te alignment, subfam reassignment if unmapped segments have been joined
@@ -1952,7 +1982,7 @@ def remap_full_check(lendict, seqdict, ref, flanksize=500):
         if not read.is_unmapped:
             inslen = int(lendict[read.query_name])
             n_rp = len(read.get_reference_positions())
-            exp_len = len(read.query_sequence)-inslen*.5
+            exp_len = len(read.query_sequence) - inslen * 0.5
 
             if read.cigartuples[0][0]==4 and read.cigartuples[0][1] > flanksize/2:
                 continue
@@ -2088,7 +2118,9 @@ def predict_somatic(rec, max_vaf=0.4, min_mapq=10.0):
         f_count = sum([ph[1] for ph in fph[ps]])
         e_count = sum([ph[1] for ph in eph[ps]])
 
-        if f_count/e_count > max_vaf:
+        if e_count == 0:
+            return 'UNKNOWN'
+        if f_count / e_count > max_vaf:
             return 'UNKNOWN'
 
     return 'SOMATIC'
@@ -2169,8 +2201,13 @@ def main(args):
     if not os.path.exists(outbase):
         os.mkdir(outbase)
 
-    bam = pysam.AlignmentFile(bams[0])
-    chroms = bam.references
+    bam = None
+    try:
+        bam = pysam.AlignmentFile(bams[0])
+        chroms = bam.references
+    finally:
+        if bam is not None:
+            bam.close()
 
     if args.chroms is not None:
         chroms = []
@@ -2350,7 +2387,10 @@ def main(args):
                         end_te = cluster.cons_te_align.max_qry_coord()
                         start_unmap = cluster.cons_te_align.min_tgt_coord()
                         end_unmap = cluster.cons_te_align.max_tgt_coord()
-                        unmap_cover = (end_unmap-start_unmap)/(c_unmap[1] - c_unmap[0])
+                        if c_unmap[1] - c_unmap[0] > 0:
+                            unmap_cover = (end_unmap - start_unmap) / (c_unmap[1] - c_unmap[0])
+                        else:
+                            unmap_cover = 'NA'
 
                     output = od()
 
@@ -2511,7 +2551,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_alt_depth', default=3, help='parameter for base changes in consensus cleanup (defult=3)')
     parser.add_argument('--min_total_depth_frac', default=0.1, help='parameter for base changes in consensus cleanup (defult=0.25)')
     parser.add_argument('--max_cluster_size', default=None, help='limit cluster size, embed-biased downsample larger clusters')
-    parser.add_argument('--wiggle', default=200, help='interval padding for breakpoint search (default = 50)')
+    parser.add_argument('--wiggle', default=200, help='interval padding for breakpoint search (default = 200)')
     parser.add_argument('--flanksize', default=500, help='flank size for read trimming (default = 500)')
     parser.add_argument('-n', '--nonref', help='known nonref tabix', default=None)
     parser.add_argument('--debug', action='store_true', default=False)
