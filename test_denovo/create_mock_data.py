@@ -34,9 +34,17 @@ TE Insertion Detection by tldr:
 import pysam
 import random
 import json
+import os
 
-# Set random seed for reproducibility
-random.seed(42)
+# Random seed: None means fully random each run, set to int for reproducibility
+# To get different results each run, set to None or remove this line
+RANDOM_SEED = None  # Change to an integer (e.g., 42) for reproducible runs
+
+if RANDOM_SEED is not None:
+    random.seed(RANDOM_SEED)
+    print(f"Random seed set to {RANDOM_SEED} for reproducibility")
+else:
+    print("Random seed disabled - fully random mode")
 
 # Directory paths
 REF_DIR = "ref"
@@ -126,14 +134,23 @@ def create_te_library():
     return TE_SEQUENCES
 
 
-def create_read_no_insertion(ref_seq, read_start, read_end, sample_name, mapq=60):
-    """Create a normal read without TE insertion."""
+def create_read_no_insertion(ref_seq, read_start, read_end, sample_name, mapq=None):
+    """Create a normal read without TE insertion.
+
+    Args:
+        ref_seq: reference sequence
+        read_start: start position in reference
+        read_end: end position in reference
+        sample_name: sample identifier
+        mapq: mapping quality (if None, random between 20-60)
+    """
     a = pysam.AlignedSegment()
     actual_len = read_end - read_start
-    a.query_name = f"{sample_name}_normal_{read_start:05d}"
+    # Random read name with position
+    a.query_name = f"{sample_name}_normal_{read_start:05d}_{random.randint(0, 999):03d}"
     a.flag = 0
     a.reference_id = 0
-    a.mapping_quality = mapq
+    a.mapping_quality = mapq if mapq is not None else random.randint(20, 60)
     a.reference_start = read_start
     a.cigartuples = [(0, actual_len)]
     a.query_sequence = ref_seq[read_start:read_end]
@@ -142,13 +159,24 @@ def create_read_no_insertion(ref_seq, read_start, read_end, sample_name, mapq=60
 
 
 def create_softclip_read_left(ref_seq, te_seq, read_start, read_end, sample_name, clip_len=None):
-    """Create a soft-clipped read with TE sequence at the LEFT end (S M pattern)."""
+    """Create a soft-clipped read with TE sequence at the LEFT end (S M pattern).
+
+    Args:
+        ref_seq: reference sequence
+        te_seq: TE sequence to use for soft-clip
+        read_start: start position in reference
+        read_end: end position in reference
+        sample_name: sample identifier
+        clip_len: clip length (if None, random between MIN_TE_LEN and TE_CLIP_LEN)
+    """
     a = pysam.AlignedSegment()
-    clip_len = clip_len or TE_CLIP_LEN
-    a.query_name = f"{sample_name}_L{clip_len}_{read_start:05d}"
+    # Random clip length if not specified
+    if clip_len is None:
+        clip_len = random.randint(MIN_TE_LEN, TE_CLIP_LEN)
+    a.query_name = f"{sample_name}_L{clip_len}_{read_start:05d}_{random.randint(0, 999):03d}"
     a.flag = 0
     a.reference_id = 0
-    a.mapping_quality = 60
+    a.mapping_quality = random.randint(30, 60)  # Random mapq
     a.reference_start = read_start
     query_seq = te_seq[:clip_len] + ref_seq[read_start:read_end]
     a.query_sequence = query_seq
@@ -159,13 +187,24 @@ def create_softclip_read_left(ref_seq, te_seq, read_start, read_end, sample_name
 
 
 def create_softclip_read_right(ref_seq, te_seq, read_start, read_end, sample_name, clip_len=None):
-    """Create a soft-clipped read with TE sequence at the RIGHT end (M S pattern)."""
+    """Create a soft-clipped read with TE sequence at the RIGHT end (M S pattern).
+
+    Args:
+        ref_seq: reference sequence
+        te_seq: TE sequence to use for soft-clip
+        read_start: start position in reference
+        read_end: end position in reference
+        sample_name: sample identifier
+        clip_len: clip length (if None, random between MIN_TE_LEN and TE_CLIP_LEN)
+    """
     a = pysam.AlignedSegment()
-    clip_len = clip_len or TE_CLIP_LEN
-    a.query_name = f"{sample_name}_R{clip_len}_{read_start:05d}"
+    # Random clip length if not specified
+    if clip_len is None:
+        clip_len = random.randint(MIN_TE_LEN, TE_CLIP_LEN)
+    a.query_name = f"{sample_name}_R{clip_len}_{read_start:05d}_{random.randint(0, 999):03d}"
     a.flag = 0
     a.reference_id = 0
-    a.mapping_quality = 60
+    a.mapping_quality = random.randint(30, 60)  # Random mapq
     a.reference_start = read_start
     query_seq = ref_seq[read_start:read_end] + te_seq[:clip_len]
     a.query_sequence = query_seq
@@ -175,16 +214,28 @@ def create_softclip_read_right(ref_seq, te_seq, read_start, read_end, sample_nam
     return a
 
 
-def create_span_read(ref_seq, te_seq, read_start, read_end, sample_name, ins_pos_offset=0):
-    """Create a spanning read that crosses the insertion point (M I M pattern)."""
+def create_span_read(ref_seq, te_seq, read_start, read_end, sample_name, ins_pos_offset=None):
+    """Create a spanning read that crosses the insertion point (M I M pattern).
+
+    Args:
+        ref_seq: reference sequence
+        te_seq: TE sequence to use for insertion
+        read_start: start position in reference
+        read_end: end position in reference
+        sample_name: sample identifier
+        ins_pos_offset: offset of insertion in read (if None, random 50-150)
+    """
     a = pysam.AlignedSegment()
-    a.query_name = f"{sample_name}_span_{read_start:05d}"
+    a.query_name = f"{sample_name}_span_{read_start:05d}_{random.randint(0, 999):03d}"
     a.flag = 0
     a.reference_id = 0
-    a.mapping_quality = 60
+    a.mapping_quality = random.randint(30, 60)  # Random mapq
     a.reference_start = read_start
-    ins_len = 300
-    ins_in_read = 200 - ins_pos_offset
+    ins_len = random.randint(200, 350)  # Random insertion length
+    # Random offset if not specified
+    if ins_pos_offset is None:
+        ins_pos_offset = random.randint(50, 200)
+    ins_in_read = max(50, 200 - ins_pos_offset)  # Ensure positive
     pre_genomic = ref_seq[read_start:read_start + ins_in_read]
     post_genomic = ref_seq[read_start + ins_in_read:read_end]
     query_seq = pre_genomic + te_seq[:ins_len] + post_genomic
@@ -243,16 +294,23 @@ def create_bam_file(output_bam, ref_seq, te_sequences, sample_name, has_insertio
         # Get sample-specific coverage multiplier
         sample_mult = get_sample_coverage(sample_name, "softclip") / 3.0  # normalize to medium
 
-        # Calculate number of reads to generate
+        # Calculate number of reads to generate with some randomness
         num_softclip_reads = max(1, int(3 * coverage_mult * sample_mult))
         num_span_reads = max(1, int(2 * coverage_mult * sample_mult))
 
         # Generate soft-clipped and span reads for this site
         for i in range(num_softclip_reads):
-            # Alternate between left and right soft-clip
-            if i % 2 == 0:
-                read_start = pos - 200
-                read_end = read_start + 750
+            # Add random jitter to position (wiggle room around insertion site)
+            jitter = random.randint(-50, 50)
+            read_len = random.randint(500, 900)  # Random read length
+
+            # Randomly choose left or right soft-clip (not just alternating)
+            clip_side = random.choice(['left', 'right'])
+
+            if clip_side == 'left':
+                # Read starts before insertion, extends past it
+                read_start = max(0, pos - 250 + jitter)
+                read_end = read_start + read_len
                 if has_te:
                     read = create_softclip_read_left(ref_seq, te_seq, read_start, read_end, sample_name)
                     clip_reads_count += 1
@@ -260,8 +318,9 @@ def create_bam_file(output_bam, ref_seq, te_sequences, sample_name, has_insertio
                     read = create_read_no_insertion(ref_seq, read_start, read_end, sample_name)
                     normal_reads_count += 1
             else:
-                read_start = pos
-                read_end = read_start + 750
+                # Read starts at insertion, extends past it
+                read_start = max(0, pos - 50 + jitter)
+                read_end = min(read_start + read_len, len(ref_seq))
                 if has_te:
                     read = create_softclip_read_right(ref_seq, te_seq, read_start, read_end, sample_name)
                     clip_reads_count += 1
@@ -270,10 +329,12 @@ def create_bam_file(output_bam, ref_seq, te_sequences, sample_name, has_insertio
                     normal_reads_count += 1
             reads.append(read)
 
-        # Generate span reads
+        # Generate span reads with random positioning
         for i in range(num_span_reads):
-            read_start = pos - 200
-            read_end = read_start + 500
+            jitter = random.randint(-80, 80)
+            span_len = random.randint(400, 650)
+            read_start = max(0, pos - 250 + jitter)
+            read_end = min(read_start + span_len, len(ref_seq))
             if has_te:
                 read = create_span_read(ref_seq, te_seq, read_start, read_end, sample_name)
                 span_reads_count += 1
@@ -282,23 +343,24 @@ def create_bam_file(output_bam, ref_seq, te_sequences, sample_name, has_insertio
                 normal_reads_count += 1
             reads.append(read)
 
-        # Generate normal coverage reads around the site
+        # Generate normal coverage reads around the site with random positioning
         for i in range(2):
-            if i == 0:
-                read_start = max(0, pos - 1500)
-            else:
-                read_start = pos + 100
-            read_end = min(read_start + 400, len(ref_seq))
+            # Random distance from insertion site
+            distance_up = random.randint(500, 2000)
+            distance_down = random.randint(50, 300)
+            read_start = max(0, pos - distance_up)
+            read_end = min(read_start + random.randint(150, 500), len(ref_seq))
             if read_end > read_start:
                 read = create_read_no_insertion(ref_seq, read_start, read_end, sample_name)
                 reads.append(read)
                 normal_reads_count += 1
 
-    # Add background coverage reads
+    # Add background coverage reads with more randomness
     num_bg_reads = get_sample_coverage(sample_name, "normal")
     for i in range(num_bg_reads):
-        read_start = random.randint(0, len(ref_seq) - 500)
-        read_end = min(read_start + random.randint(200, 500), len(ref_seq))
+        # More diverse background read positions
+        read_start = random.randint(0, len(ref_seq) - 300)
+        read_end = min(read_start + random.randint(150, 600), len(ref_seq))
         read = create_read_no_insertion(ref_seq, read_start, read_end, sample_name)
         reads.append(read)
         normal_reads_count += 1
@@ -516,5 +578,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
     main()

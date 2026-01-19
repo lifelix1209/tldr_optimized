@@ -1,0 +1,98 @@
+[
+  {
+    "uuid": "ins_inherited_from_mom",
+    "chrom": "chr1",
+    "bp_left": 5000,
+    "bp_right": 5300,
+    "te_family": "L1HS",
+    "min_parent_depth": 8,
+    "mom_depth": 25.0,
+    "dad_depth": 29.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "PASS_DENOVO",
+    "reasons": [
+      "Passed all criteria"
+    ]
+  },
+  {
+    "uuid": "ins_inherited_from_dad",
+    "chrom": "chr1",
+    "bp_left": 15000,
+    "bp_right": 15300,
+    "te_family": "L1HS",
+    "min_parent_depth": 8,
+    "mom_depth": 17.0,
+    "dad_depth": 18.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "PASS_DENOVO",
+    "reasons": [
+      "Passed all criteria"
+    ]
+  },
+  {
+    "uuid": "ins_denovo",
+    "chrom": "chr1",
+    "bp_left": 25000,
+    "bp_right": 25300,
+    "te_family": "L1HS",
+    "min_parent_depth": 8,
+    "mom_depth": 11.0,
+    "dad_depth": 11.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "PASS_DENOVO",
+    "reasons": [
+      "Passed all criteria"
+    ]
+  },
+  {
+    "uuid": "ins_mosaic_mom_to_child",
+    "chrom": "chr1",
+    "bp_left": 10000,
+    "bp_right": 10250,
+    "te_family": "L1HS",
+    "min_parent_depth": 8,
+    "mom_depth": 13.0,
+    "dad_depth": 11.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "PASS_DENOVO",
+    "reasons": [
+      "Passed all criteria"
+    ]
+  },
+  {
+    "uuid": "ins_mosaic_dad_to_child",
+    "chrom": "chr1",
+    "bp_left": 20000,
+    "bp_right": 20200,
+    "te_family": "AluY",
+    "min_parent_depth": 8,
+    "mom_depth": 11.0,
+    "dad_depth": 12.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "PASS_DENOVO",
+    "reasons": [
+      "Passed all criteria"
+    ]
+  },
+  {
+    "uuid": "ins_denovo_low_support",
+    "chrom": "chr1",
+    "bp_left": 30000,
+    "bp_right": 30250,
+    "te_family": "L1HS",
+    "min_parent_depth": 8,
+    "mom_depth": 6.0,
+    "dad_depth": 6.0,
+    "mom_alt": 0,
+    "dad_alt": 0,
+    "evaluation": "UNCERTAIN",
+    "reasons": [
+      "Both parents have insufficient depth"
+    ]
+  }
+]
