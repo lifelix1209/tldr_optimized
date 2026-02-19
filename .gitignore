@@ -1,0 +1,47 @@
+# macOS / OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Local assistant metadata
+.claude/
+CLAUDE.md
+
+# Python cache / virtualenv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Tool caches / reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Project-generated outputs
+test/test.table.txt
+test_denovo/bams/tldr_visualizations/
+test_denovo/output/
+denovo_visualizations/
+enhanced_visualizations/
+tmp.*.tgt.fa
+
+# Logs
+*.log
