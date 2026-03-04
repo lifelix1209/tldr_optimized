@@ -4,31 +4,30 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  # Core tools
-  - python>=3.13
-  - pip>=24.0
-
-  # Bioinformatics tools
-  - exonerate>=2.4.0
-  - mafft>=7.490
-  - minimap2>=2.24
-  - samtools>=1.19
-
-  # Python dependencies (from pip section below)
+  # Core runtime
+  - python=3.11
   - pip
-  - pip:
-    # Core dependencies
-    - bx-python>=0.14.0
-    - joblib>=1.5.3
-    - numpy>=2.4.0
-    - pysam>=0.23.3
-    - scikit-learn>=1.8.0
-    - scipy>=1.16.3
-    - threadpoolctl>=3.6.0
-    - tqdm>=4.67.1
+  - exonerate=2.4.*
+  - mafft=7.*
+  - minimap2>=2.24
+  - samtools>=1.16
+  - tabix
 
-    # Visualization
-    - matplotlib>=3.8.0
+  # Python dependencies
+  - pip:
+    - bx-python>=0.8.13
+    - joblib>=1.1.0
+    - numpy>=1.22.0,<2.4
+    - pysam>=0.18.0
+    - scikit-learn>=1.0.0
+    - scipy>=1.8.0
+    - threadpoolctl>=3.1.0
+    - tqdm>=4.64.0
+
+    # Visualization / analysis
+    - matplotlib>=3.7.0
+    - pandas>=1.5.0
+    - seaborn>=0.12.0
 
     # Development
     - pytest>=8.0.0

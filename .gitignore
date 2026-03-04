@@ -8,6 +8,7 @@ Thumbs.db
 
 # Local assistant metadata
 .claude/
+.codex/
 CLAUDE.md
 
 # Python cache / virtualenv
@@ -31,6 +32,7 @@ pip-wheel-metadata/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.ipynb_checkpoints/
 .coverage
 .coverage.*
 htmlcov/
@@ -45,3 +47,5 @@ tmp.*.tgt.fa
 
 # Logs
 *.log
+*.swp
+*.swo

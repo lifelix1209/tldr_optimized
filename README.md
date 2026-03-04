@@ -6,27 +6,40 @@
 
 # Installation
 
-tldr requires python > 3.6 and has the following dependencies:
+tldr requires Python >= 3.9 plus the following external tools:
 - HTSLIB/Samtools
 - minimap2
 - MAFFT
 - Exonerate
-- some python dependecies in the background. 
 
-## One-step Conda environment setup 
-There is a pre-baked Conda (or [mamba](https://anaconda.org/conda-forge/mamba)) environment file provided (tldr.yml) that can be used to create a tldr Conda environment with all of the necessary dependencies. 
+## Quickstart (Conda/Mamba)
 
-```
-git clone https://github.com/adamewing/tldr.git
-cd tldr
+Use the pinned runtime environment in `tldr.yml`:
+
+```bash
+git clone https://github.com/lifelix1209/tldr_optimized.git
+cd tldr_optimized
 conda env create -f tldr.yml
 conda activate tldr
-pip install -e $PWD
+pip install -e .
 tldr -h
 ```
-If you use the above method, make sure to activate the Conda environment first with `conda activate tldr` whenever using tldr.
 
-## Installing dependencies seperately
+## Development Environment
+
+For development and de novo workflow scripts, use `tldr-dev.yml`:
+
+```bash
+conda env create -f tldr-dev.yml
+conda activate tldr-dev
+pip install -e .
+python -m py_compile tldr/tldr
+find scripts test test_denovo -name "*.py" -print0 | xargs -0 python -m py_compile
+```
+
+If you use `uv`, the project metadata is in `pyproject.toml` and lockfile in `uv.lock`.
+
+## Installing dependencies separately
 ## HTSLIB / SAMtools
 Easiest method is via conda:
 
@@ -71,10 +84,8 @@ For manual installation see the [exonerate website](https://www.ebi.ac.uk/about/
 
 # Install
 
-Install tldr package + python dependencies:
-
-```
-python setup.py install
+```bash
+pip install -e .
 ```
 
 # Running tldr
@@ -322,8 +333,15 @@ The de novo evaluation uses the following thresholds:
   - Floor of 8 reads, scaled by 25% of median depth
 - **Maximum parent alt reads**: 0 (strict)
   - No soft-clipped or insertion CIGAR reads allowed near breakpoints
-- **Breakpoint precision**: Not explicitly validated by parent_support.py
-  - Child-side precision controlled by `--wiggle` parameter
+- **Breakpoint precision**:
+  - Parent-side position consistency is validated via breakpoint std/iqr
+  - Thresholds are wiggle-adaptive by default in `parent_support.py`
+- **Parent evidence quality controls**:
+  - Defaults: `--min_softclip_len 30`, `--min_insertion_len 50`, `--min_mapq 20`
+  - Parent alt counts are de-duplicated by read by default
+- **Wiggle handling**:
+  - Parent script defaults to `--wiggle 80`
+  - If candidate rows include `wiggle`, candidate-specific values are used
 
 ### Output Fields
 
@@ -367,4 +385,10 @@ Adam D. Ewing, Nathan Smits, Francisco J. Sanchez-Luque, Sandra R. Richardson, S
 
 ## Getting help
 
-Reporting [issues](https://github.com/adamewing/tldr/issues) and questions through github is preferred versus e-mail.
+Reporting [issues](https://github.com/lifelix1209/tldr_optimized/issues) and questions through GitHub is preferred.
+
+## Repository docs
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): development workflow and PR guidance
+- [SECURITY.md](SECURITY.md): vulnerability reporting policy
+- [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md): pre-release checklist

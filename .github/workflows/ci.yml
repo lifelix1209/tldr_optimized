@@ -10,6 +10,11 @@ on:
 jobs:
   python-syntax-check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,9 +22,26 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Compile Python files
         run: |
+          python -m py_compile setup.py
           python -m py_compile tldr/tldr
           find scripts test test_denovo -name "*.py" -print0 | xargs -0 python -m py_compile
+
+  package-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build package artifacts
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist --wheel
